@@ -14,18 +14,7 @@
     mdiBorderVertical,
     mdiArrowSplitHorizontal,
     mdiAccessPoint,
-    mdiAccessPointOff,
-    mdiRecord,
-    mdiStop,
-    mdiPause,
-    mdiPlayPause,
-    mdiConnection,
-    mdiCameraOff,
-    mdiCamera,
-    mdiMotionPlayOutline,
-    mdiMotionPlay,
-    mdiContentSaveMoveOutline,
-    mdiContentSaveCheckOutline
+    mdiAccessPointOff
   } from '@mdi/js'
   import Icon from 'mdi-svelte'
   import { compareVersions } from 'compare-versions'
@@ -101,18 +90,13 @@
   let isFullScreen
   let isStudioMode
   let isSceneOnTop = window.localStorage.getItem('isSceneOnTop') || false
-  let isVirtualCamActive
   let isIconMode = window.localStorage.getItem('isIconMode') || false
-  let isReplaying
   let editable = false
   let address
   let password
   let scenes = []
-  let replayError = ''
   let errorMessage = ''
   let imageFormat = 'jpg'
-  let isSaveReplay = false
-  let isSaveReplayDisabled = false
 
   $: isSceneOnTop
     ? window.localStorage.setItem('isSceneOnTop', 'true')
@@ -159,37 +143,6 @@
     })
   }
 
-  function setReplayError (message) {
-    replayError = message
-    setTimeout(() => {
-      replayError = ''
-    }, 5000)
-  }
-
-  async function toggleReplay () {
-    const data = await sendCommand('ToggleReplayBuffer')
-    console.debug('ToggleReplayBuffer', data.outputActive)
-    if (data.outputActive === undefined) {
-      setReplayError('Replay buffer is not enabled.')
-    } else isReplaying = data.outputActive
-  }
-
-  async function saveReplay () {
-    const data = await sendCommand('GetReplayBufferStatus')
-    console.debug('GetReplayBufferStatus', data.outputActive)
-    if (!data.outputActive) {
-      setReplayError('Replay buffer is not enabled.')
-      return
-    }
-    await sendCommand('SaveReplayBuffer')
-    isSaveReplayDisabled = true
-    isSaveReplay = true
-    setTimeout(() => {
-      isSaveReplay = false
-      isSaveReplayDisabled = false
-    }, 2500)
-  }
-
   async function switchSceneView () {
     isSceneOnTop = !isSceneOnTop
   }
@@ -200,30 +153,6 @@
 
   async function stopStream () {
     await sendCommand('StopStream')
-  }
-
-  async function startRecording () {
-    await sendCommand('StartRecord')
-  }
-
-  async function stopRecording () {
-    await sendCommand('StopRecord')
-  }
-
-  async function startVirtualCam () {
-    await sendCommand('StartVirtualCam')
-  }
-
-  async function stopVirtualCam () {
-    await sendCommand('StopVirtualCam')
-  }
-
-  async function pauseRecording () {
-    await sendCommand('PauseRecord')
-  }
-
-  async function resumeRecording () {
-    await sendCommand('ResumeRecord')
   }
 
   async function connect () {
@@ -298,8 +227,6 @@
     }, 1000) // Heartbeat
     isStudioMode =
       (await sendCommand('GetStudioModeEnabled')).studioModeEnabled || false
-    isVirtualCamActive =
-      (await sendCommand('GetVirtualCamStatus')).outputActive || false
   })
 
   obs.on('ConnectionError', async () => {
@@ -310,21 +237,6 @@
     } else {
       await connect()
     }
-  })
-
-  obs.on('VirtualcamStateChanged', async (data) => {
-    console.log('VirtualcamStateChanged', data.outputActive)
-    isVirtualCamActive = data && data.outputActive
-  })
-
-  obs.on('StudioModeStateChanged', async (data) => {
-    console.log('StudioModeStateChanged', data.studioModeEnabled)
-    isStudioMode = data && data.studioModeEnabled
-  })
-
-  obs.on('ReplayBufferStateChanged', async (data) => {
-    console.log('ReplayBufferStateChanged', data)
-    isReplaying = data && data.outputActive
   })
 </script>
 
@@ -382,58 +294,6 @@
                 <span class="icon"><Icon path={mdiAccessPoint} /></span>
               </button>
             {/if}
-            {#if heartbeat && heartbeat.recording && heartbeat.recording.outputActive}
-              {#if heartbeat.recording.outputPaused}
-                <button
-                  class="button is-danger"
-                  on:click={resumeRecording}
-                  title="Resume Recording"
-                >
-                  <span class="icon"><Icon path={mdiPlayPause} /></span>
-                </button>
-              {:else}
-                <button
-                  class="button is-success"
-                  on:click={pauseRecording}
-                  title="Pause Recording"
-                >
-                  <span class="icon"><Icon path={mdiPause} /></span>
-                </button>
-              {/if}
-              <button
-                class="button is-danger"
-                on:click={stopRecording}
-                title="Stop Recording"
-              >
-                <span class="icon"><Icon path={mdiStop} /></span>
-                <span>{formatTime(heartbeat.recording.outputDuration)}</span>
-              </button>
-            {:else}
-              <button
-                class="button is-danger is-light"
-                on:click={startRecording}
-                title="Start Recording"
-              >
-                <span class="icon"><Icon path={mdiRecord} /></span>
-              </button>
-            {/if}
-            {#if isVirtualCamActive}
-              <button
-                class="button is-danger"
-                on:click={stopVirtualCam}
-                title="Stop Virtual Webcam"
-              >
-                <span class="icon"><Icon path={mdiCameraOff} /></span>
-              </button>
-            {:else}
-              <button
-                class="button is-danger is-light"
-                on:click={startVirtualCam}
-                title="Start Virtual Webcam"
-              >
-                <span class="icon"><Icon path={mdiCamera} /></span>
-              </button>
-            {/if}
             <button
               class:is-light={!isStudioMode}
               class="button is-link"
@@ -474,47 +334,8 @@
                 />
               </span>
             </button>
-            <button
-              class:is-light={!isReplaying}
-              class:is-danger={replayError}
-              class="button is-link"
-              title="Toggle Replay Buffer"
-              on:click={toggleReplay}
-            >
-              <span class="icon">
-                <Icon
-                  path={isReplaying ? mdiMotionPlayOutline : mdiMotionPlay}
-                />
-              </span>
-              {#if replayError}<span>{replayError}</span>{/if}
-            </button>
-            <button
-              class:is-light={!isSaveReplay}
-              class="button is-link"
-              title="Save Replay Buffer"
-              on:click={() => {
-                if (!isSaveReplayDisabled) {
-                  saveReplay()
-                }
-                isSaveReplayDisabled = !isSaveReplayDisabled
-              }}
-            >
-              <span class="icon">
-                <Icon
-                  path={isSaveReplay ? mdiContentSaveCheckOutline : mdiContentSaveMoveOutline}
-                />
-              </span>
-              {#if replayError}<span>{replayError}</span>{/if}
-            </button>
             <ProfileSelect />
             <SceneCollectionSelect />
-            <button
-              class="button is-danger is-light"
-              on:click={disconnect}
-              title="Disconnect"
-            >
-              <span class="icon"><Icon path={mdiConnection} /></span>
-            </button>
           {:else}
             <button class="button is-danger" disabled
               >{errorMessage || 'Disconnected'}</button
